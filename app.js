@@ -58,36 +58,40 @@ app.get('/', (req, res) => {
 async function fetchData(id) {
     const data = [];
     const friends = [];
-    const activeConversation = await pool.query(`
-        SELECT m.sender_id AS user, m.receiver_id, u.username AS friend_name, m.content AS message, m.timestamp AS time
-        FROM messages m
-        INNER JOIN users u ON u.id = m.receiver_id
-        WHERE m.sender_id = $1 OR m.receiver_id = $1
-        ORDER BY time DESC;
-    `, [id]);
+    try {
+        const activeConversation = await pool.query(`
+            SELECT m.sender_id AS user, m.receiver_id, u.username AS friend_name, m.content AS message, m.timestamp AS time
+            FROM messages m
+            INNER JOIN users u ON u.id = m.receiver_id
+            WHERE m.sender_id = $1 OR m.receiver_id = $1
+            ORDER BY time DESC;
+        `, [id]);
 
-    const friends_list = await pool.query(`
-        SELECT f.user_id, f.friends_id, u.username
-        FROM friends f
-        INNER JOIN users u ON u.id = f.friends_id
-        WHERE f.user_id = $1
-    `, [id]);
+        const friends_list = await pool.query(`
+            SELECT f.user_id, f.friends_id, u.username
+            FROM friends f
+            INNER JOIN users u ON u.id = f.friends_id
+            WHERE f.user_id = $1
+        `, [id]);
 
-    activeConversation.rows.forEach(user => {
-        data.push({
-            sender_id: user.user,
-            friend_name: user.friend_name,
-            receiver_id: user.receiver_id,
-            message: user.message,
-            time: user.time
+        activeConversation.rows.forEach(user => {
+            data.push({
+                sender_id: user.user,
+                friend_name: user.friend_name,
+                receiver_id: user.receiver_id,
+                message: user.message,
+                time: user.time
+            });
         });
-    });
 
-    friends_list.rows.forEach(name => {
-        friends.push({ friend_name: name.username, friend_id: name.friends_id });
-    });
+        friends_list.rows.forEach(name => {
+            friends.push({ friend_name: name.username, friend_id: name.friends_id });
+        });
 
-    return { friends: friends, data: data };
+    } catch (err) {
+        console.error('Error fetching data:', err);
+    }
+    return { friends, data };
 }
 
 // Render home page
@@ -97,62 +101,62 @@ app.all('/home', async (req, res) => {
         const message = req.body.message;
         const type = req.query.type || 'success';
 
-        let x = await fetchData(req.user.id);
-        const data = [];
-        const friend_0 = x.friends[0]?.friend_id;
-        let friend = friendId || friend_0;
+        try {
+            let x = await fetchData(req.user.id);
+            const data = [];
+            const friend_0 = x.friends[0]?.friend_id;
+            let friend = friendId || friend_0;
 
-        if (message) {
-            try {
+            if (message) {
                 await pool.query(`
                     INSERT INTO messages (sender_id, receiver_id, content)
                     VALUES ($1, $2, $3)
                 `, [req.user.id, friend, message]);
-            } catch (err) {
-                console.log(err);
-                res.redirect('/');
-                return;
             }
+
+            x = await fetchData(req.user.id);
+
+            x.data.forEach(msg => {
+                if (
+                    (msg.sender_id == req.user.id && msg.receiver_id == friend) ||
+                    (msg.sender_id == friend && msg.receiver_id == req.user.id)
+                ) {
+                    const dateObj = new Date(msg.time);
+                    const options = {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    };
+                    const formattedDate = dateObj.toLocaleDateString('en-US', options);
+                    const formattedTime = dateObj.toLocaleTimeString('en-US', options);
+                    const formattedDateTime = `${formattedTime}`;
+
+                    data.push({
+                        receiver_id: msg.receiver_id,
+                        message: msg.message,
+                        time: formattedDateTime
+                    });
+                }
+            });
+
+            res.render('home', {
+                friends: x.friends,
+                userdata: req.user,
+                messages: data,
+                friend_name: x.friends.find(f => f.friend_id == friend)?.friend_name || "Friend's Username",
+                friend_id: friend,
+                message, // Pass the message for popup
+                type // Pass the type for popup
+            });
+
+        } catch (err) {
+            console.error('Error rendering home page:', err);
+            res.status(500).send('Internal Server Error');
         }
-
-        x = await fetchData(req.user.id);
-
-        x.data.forEach(msg => {
-            if (
-                (msg.sender_id == req.user.id && msg.receiver_id == friend) ||
-                (msg.sender_id == friend && msg.receiver_id == req.user.id)
-            ) {
-                const dateObj = new Date(msg.time);
-                const options = {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                    hour12: false
-                };
-                const formattedDate = dateObj.toLocaleDateString('en-US', options);
-                const formattedTime = dateObj.toLocaleTimeString('en-US', options);
-                const formattedDateTime = `${formattedTime}`;
-
-                data.push({
-                    receiver_id: msg.receiver_id,
-                    message: msg.message,
-                    time: formattedDateTime
-                });
-            }
-        });
-
-        res.render('home', {
-            friends: x.friends,
-            userdata: req.user,
-            messages: data,
-            friend_name: x.friends.find(f => f.friend_id == friend)?.friend_name || "Friend's Username",
-            friend_id: friend,
-            message, // Pass the message for popup
-            type // Pass the type for popup
-        });
     } else {
         res.redirect('/');
     }
@@ -175,14 +179,14 @@ app.post('/register', async (req, res) => {
 
         bcrypt.hash(password, saltRounds, async (err, hash) => {
             if (err) {
-                console.log('Error hashing password', err);
+                console.error('Error hashing password', err);
                 return res.redirect('/?message=Error hashing password&type=error');
             }
             await pool.query('INSERT INTO users (username, email, password) VALUES ($1, $2, $3)', [username, email, hash]);
             res.redirect('/?message=User registered successfully!&type=success');
         });
     } catch (err) {
-        console.log(err);
+        console.error('Error registering user:', err);
         res.redirect('/?message=Server error&type=error');
     }
 });
@@ -197,7 +201,7 @@ app.post('/login', passport.authenticate('local', {
 app.post('/logout', (req, res) => {
     req.logout((err) => {
         if (err) {
-            console.log(err);
+            console.error('Error logging out:', err);
             return res.redirect('/?message=Error logging out&type=error');
         }
         res.redirect('/?message=Logged out successfully&type=success');
@@ -231,7 +235,7 @@ app.post('/add-friend', async (req, res) => {
         res.redirect('/home?message=Friend added successfully.');
         
     } catch (error) {
-        console.error(error);
+        console.error('Error adding friend:', error);
         res.redirect('/home?message=Server error.');
     }
 });
@@ -250,7 +254,7 @@ passport.use(new Strategy({ usernameField: 'email' }, async (email, password, do
         }
         return done(null, false, { message: 'Incorrect username or password.' });
     } catch (err) {
-        console.log(err);
+        console.error('Error in passport strategy:', err);
         return done(err);
     }
 }));
@@ -265,7 +269,7 @@ passport.deserializeUser(async (id, done) => {
         const user = result.rows[0];
         done(null, user);
     } catch (err) {
-        console.log(err);
+        console.error('Error deserializing user:', err);
         done(err);
     }
 });
