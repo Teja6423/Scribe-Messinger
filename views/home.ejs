@@ -8,40 +8,33 @@
   <style>
     /* Popup message styles */
     .popup-message {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 10px 20px;
-      border-radius: 5px;
-      color: #fff;
-      font-weight: bold;
-      display: none; /* Hidden by default */
-      z-index: 1000;
+        display: none;
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 15px;
+        border-radius: 5px;
+        color: #fff;
+        z-index: 1000;
     }
-
     .popup-message.success {
-      background-color: #4CAF50; /* Green */
+        background-color: #28a745; /* Green for success */
     }
-
     .popup-message.error {
-      background-color: #f44336; /* Red */
+        background-color: #dc3545; /* Red for error */
     }
-
-    /* Additional styles */
-    .user-info {
-      font-size: 16px;
-      font-weight: bold;
+    .availability-check {
+        font-size: 0.9em;
+        color: #dc3545; /* Red color for error */
+        margin-top: 5px;
     }
   </style>
 </head>
 <body>
-  <!-- Popup message container -->
-  <% if (message) { %>
-    <div class="popup-message <%= type || 'success' %>">
-      <%= message %>
-    </div>
-  <% } %>
+  <div id="popupMessage">
+  </div>
+
 
   <div class="container">
     <div class="sidebar">
@@ -68,15 +61,17 @@
         <!-- List of conversations -->
         <ul id="conversationList">
           <% friends.forEach(friend => { %>
-            <li class="conversation" onclick="submitForm('<%= friend.friend_id %>')">
-              <form method="get" action="/home" id="form_<%= friend.friend_id %>">
+            <form method="get" action="/home" onclick="submit('<%= friend.friend_id %>')">
+
+              <li class="conversation">
                 <div class="conversation-info">
                   <span class="friend-name"><%= friend.friend_name %></span>
                   <span class="last-message">ID:#<%= friend.friend_id %></span>
                   <input type="hidden" name="friend_id" value="<%= friend.friend_id %>">
                 </div>
-              </form>
             </li>
+            </form>
+
           <% }); %>
         </ul>
       </div>
@@ -115,67 +110,102 @@
         </form>
       </div>
     </div>
+    
   </div>
 
   <script>
-    function updateMessages() {
-      fetch('/home?friend_id=<%= friend_id %>')
-        .then(response => response.json())
+    document.addEventListener("DOMContentLoaded", () => {
+      const conversationsBtn = document.getElementById("conversationsBtn");
+      const addFriendBtn = document.getElementById("addFriendBtn");
+      const conversationList = document.querySelector(".conversations");
+      const addFriendSection = document.querySelector(".add-friend");
+      const popupMessage = document.getElementById('popupMessage');
+
+      // Function to update messages in the chat area
+      function updateMessages() {
+        const friendId = '<%= friend_id %>';
+        const userId = '<%= userdata.id %>'; // Make sure userdata.id is available in your template
+    
+        if (!friendId || !userId) return; // Do not fetch if no friendId or userId is set
+    
+        fetch(`/home?friend_id=${encodeURIComponent(friendId)}`, {
+          headers: {
+            'Accept': 'application/json'
+          }
+        })
+        .then(response => response.json()) // Directly parse JSON
         .then(data => {
           const messagesContainer = document.querySelector('.messages');
           messagesContainer.innerHTML = ''; // Clear existing messages
-
+    
           data.messages.forEach(msg => {
             const messageDiv = document.createElement('div');
-            messageDiv.classList.add('message');
-            messageDiv.classList.add(msg.receiver_id === '<%= userdata.id %>' ? 'received' : 'sent');
+            // Determine message class based on receiver_id
+            messageDiv.className = 'message ' + (msg.receiver_id === parseInt(userId) ? 'received' : 'sent');
             messageDiv.innerHTML = `
               <p class="message-text">${msg.message}</p>
               <span class="message-time">${msg.time}</span>
             `;
             messagesContainer.appendChild(messageDiv);
           });
-
+    
           // Scroll to the bottom of the messages container
           messagesContainer.scrollTop = messagesContainer.scrollHeight;
         })
-        .catch(error => console.error('Error fetching messages:', error));
-    }
-
-    // Set interval to update messages every 5 seconds
-    setInterval(updateMessages, 5000);
-
-    // Initial call to populate messages
-    updateMessages();
-
-    function submitForm(friendId) {
-      document.getElementById('form_' + friendId).submit();
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      const conversationsBtn = document.getElementById("conversationsBtn");
-      const addFriendBtn = document.getElementById("addFriendBtn");
-      const conversationList = document.querySelector(".conversations");
-      const addFriendSection = document.querySelector(".add-friend");
-      const popupMessage = document.querySelector('.popup-message');
-
+        .catch((error) => {
+          console.error('Error fetching messages:', error);
+        });
+      }
+    
+      // Set interval to update messages every 5 seconds
+      setInterval(updateMessages, 5000);
+    
+      // Initial call to populate messages
+      updateMessages();
+    
+      // Function to submit the form for a selected conversation
+      function submitForm(friendId) {
+        document.getElementById('form_' + friendId).submit();
+      }
+    
+      // Event listeners for toggling between conversations and add friend sections
       conversationsBtn.addEventListener("click", () => {
         conversationList.style.display = "block";
         addFriendSection.style.display = "none";
       });
-
+    
       addFriendBtn.addEventListener("click", () => {
         conversationList.style.display = "none";
         addFriendSection.style.display = "block";
       });
-
-      if (popupMessage) {
-        popupMessage.style.display = "block";
+    
+      // Display the popup message if it exists
+      function showPopupMessage(message, type) {
+        if (!popupMessage) {
+          console.error('Popup message element not found');
+          return;
+        }
+        console.log('Showing popup message:', message, type); // Debugging line
+        popupMessage.textContent = message;
+        popupMessage.className = `popup-message ${type}`;
+        popupMessage.style.display = 'block';
         setTimeout(() => {
-          popupMessage.style.display = "none";
-        }, 3000); // Hide popup after 3 seconds
+          popupMessage.style.display = 'none';
+        }, 5000); // Hide message after 5 seconds
+      }
+
+      // Display messages from URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const message = urlParams.get('message');
+      const type = urlParams.get('type');
+
+      console.log('URL Parameters:', { message, type }); // Debugging line
+
+      if (message && type) {
+        showPopupMessage(message, type);
       }
     });
   </script>
+    
 </body>
 </html>

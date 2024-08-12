@@ -91,18 +91,19 @@ async function fetchData(id) {
     return { friends: friends, data: data };
 }
 
+
 // Render home page
 app.all('/home', async (req, res) => {
     if (req.isAuthenticated()) {
         const friendId = req.query.friend_id || req.body.friend_id;
         const message = req.body.message; 
         const type = req.query.type || 'success'; 
-  
+
         let x = await fetchData(req.user.id);
         const data = [];
         const friend_0 = x.friends[0]?.friend_id;
         let friend = friendId || friend_0;
-  
+
         if (message) {
             try {
                 await db.query(`
@@ -115,9 +116,9 @@ app.all('/home', async (req, res) => {
                 return;
             }
         }
-  
+
         x = await fetchData(req.user.id);
-  
+
         x.data.forEach(msg => {
             if (
                 (msg.sender_id == req.user.id && msg.receiver_id == friend) ||
@@ -136,7 +137,7 @@ app.all('/home', async (req, res) => {
                 const formattedDate = dateObj.toLocaleDateString('en-US', options);
                 const formattedTime = dateObj.toLocaleTimeString('en-US', options);
                 const formattedDateTime = `${formattedTime}`;
-  
+
                 data.push({
                     receiver_id: msg.receiver_id,
                     message: msg.message,
@@ -144,20 +145,28 @@ app.all('/home', async (req, res) => {
                 });
             }
         });
-  
-        res.render('home', {
-            friends: x.friends,
-            userdata: req.user,
-            messages: data,
-            friend_name: x.friends.find(f => f.friend_id == friend)?.friend_name || "Friend's Username",
-            friend_id: friend,
-            message, // Pass the message for popup
-            type // Pass the type for popup
-        });
+
+        // Send JSON response
+        if (req.headers['accept'] === 'application/json') {
+            res.json({ messages: data });
+        } else {
+            res.render('home', {
+                friends: x.friends,
+                userdata: req.user,
+                messages: data,
+                friend_name: x.friends.find(f => f.friend_id == friend)?.friend_name || "Friend's Username",
+                friend_id: friend,
+                message, // Pass the message for popup
+                type // Pass the type for popup
+            });
+        }
     } else {
         res.redirect('/');
     }
 });
+
+
+
   
 app.post('/register', async (req, res) => {
     const { username, email, password } = req.body;
@@ -184,6 +193,17 @@ app.post('/register', async (req, res) => {
     } catch (err) {
         console.log(err);
         res.redirect('/?message=Server error&type=error');
+    }
+});
+
+app.get('/check-username', async (req, res) => {
+    const username = req.query.username;
+    try {
+        const result = await db.query("SELECT * FROM users WHERE username = $1", [username]);
+        res.json({ available: result.rows.length === 0 });
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -214,25 +234,25 @@ app.post('/add-friend', async (req, res) => {
         const userResult = await db.query('SELECT id FROM users WHERE username = $1', [username]);
 
         if (userResult.rows.length === 0) {
-            return res.redirect('/home?message=User not found.&type=error');
+            return res.redirect('/home/?message=User not found.&type=error');
         }
 
         const userId = userResult.rows[0].id;
 
         if (userId == Number(req.user.id)) {
-            return res.redirect('/home?message=Enter a valid user ID, not yours.&type=error');
+            return res.redirect('/home/?message=Enter a valid user ID, not yours.&type=error');
         }
 
         if (friendIDs.includes(Number(userId))) {
             return res.redirect('/home?message=You are already friends with this user.&type=error');
         }
 
-        await db.query('INSERT INTO friends (user_id, friends_id, active_conversation) VALUES ($1, $2, true)', [req.user.id, userId]);
-        res.redirect('/home?message=Friend added successfully.&type=success');
+        await db.query('INSERT INTO friends (user_id, friends_id, active_conversation) VALUES ($1, $2, true),($2, $1, true)', [req.user.id, userId]);
+        res.redirect('/home/?message=Friend added successfully.&type=success');
         
     } catch (error) {
         console.error(error);
-        res.redirect('/home?message=Server error.&type=error');
+        res.redirect('/home/?message=Server error.&type=error');
     }
 });
 
