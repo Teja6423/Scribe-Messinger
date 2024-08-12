@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scribe Messenger - Login/Register</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        .popup-message {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px;
+            border-radius: 5px;
+            color: #fff;
+            z-index: 1000;
+        }
+        .popup-message.success {
+            background-color: #28a745; /* Green for success */
+        }
+        .popup-message.error {
+            background-color: #dc3545; /* Red for error */
+        }
+        .availability-check {
+            font-size: 0.9em;
+            color: #dc3545; /* Red color for error */
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Scribe Messenger</h1>
+        </header>
+
+        <!-- Authentication Section -->
+        <section class="auth-section">
+            <div class="form-container" id="auth-form">
+                <!-- Login Form -->
+                <div id="login-form">
+                    <h2>Login</h2>
+                    <form action="/login" method="POST">
+                        <label for="login-email">Email:</label>
+                        <input type="email" id="login-email" name="email" required>
+                        <label for="login-password">Password:</label>
+                        <input type="password" id="login-password" name="password" required minlength="6">
+                        <button type="submit">Login</button>
+                    </form>
+                    <p>Not registered? <a href="#" id="signup-button">Sign Up</a></p>
+                </div>
+
+                <!-- Register Form -->
+                <div id="register-form" style="display: none;">
+                    <h2>Register</h2>
+                    <form action="/register" method="POST">
+                        <label for="register-username">Username:</label>
+                        <input type="text" id="register-username" name="username" required minlength="4">
+                        <div id="username-check" class="availability-check"></div>
+                        <label for="register-email">Email:</label>
+                        <input type="email" id="register-email" name="email" required>
+                        <label for="register-password">Password:</label>
+                        <input type="password" id="register-password" name="password" required minlength="6">
+                        <button type="submit">Register</button>
+                    </form>
+                    <p>Already registered? <a href="#" id="login-button">Log In</a></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section class="about-section">
+            <h2>About Scribe Messenger</h2>
+            <p>Scribe Messenger is a platform for seamless communication with a focus on simplicity and ease of use. Whether you're on mobile or PC, we provide a smooth and engaging messaging experience.</p>
+        </section>
+
+        <!-- Popup Message -->
+        <div id="popup-message" class="popup-message"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const signupButton = document.getElementById('signup-button');
+            const loginButton = document.getElementById('login-button');
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+            const popupMessage = document.getElementById('popup-message');
+            const usernameInput = document.getElementById('register-username');
+            const usernameCheck = document.getElementById('username-check');
+
+            signupButton.addEventListener('click', function(event) {
+                event.preventDefault();
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+            });
+
+            loginButton.addEventListener('click', function(event) {
+                event.preventDefault();
+                registerForm.style.display = 'none';
+                loginForm.style.display = 'block';
+            });
+
+            // Function to show popup messages
+            function showPopupMessage(message, type) {
+                popupMessage.textContent = message;
+                popupMessage.className = `popup-message ${type}`;
+                popupMessage.style.display = 'block';
+                setTimeout(() => {
+                    popupMessage.style.display = 'none';
+                }, 5000); // Hide message after 5 seconds
+            }
+
+            // Display messages from URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const message = urlParams.get('message');
+            const type = urlParams.get('type');
+
+            if (message && type) {
+                showPopupMessage(message, type);
+            }
+
+            // Check username availability
+            usernameInput.addEventListener('input', async function() {
+                const username = usernameInput.value;
+                if (username.length < 4) {
+                    usernameCheck.textContent = 'Username must be at least 4 characters long.';
+                    return;
+                }
+                try {
+                    const response = await fetch(`/check-username?username=${username}`);
+                    const result = await response.json();
+                    if (!result.available) {
+                        usernameCheck.textContent = 'Username already exists.';
+                    } else {
+                        usernameCheck.textContent = '';
+                    }
+                } catch (error) {
+                    console.error('Error checking username:', error);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

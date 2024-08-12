@@ -1,0 +1,36 @@
+# Node modules directory
+node_modules/
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*.local
+
+# Dependency directories
+jspm_packages/
+
+# Build output
+dist/
+build/
+.next/
+.cache/
+
+# IDE files
+.idea/
+.vscode/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# npm package lock file
+package-lock.json
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
