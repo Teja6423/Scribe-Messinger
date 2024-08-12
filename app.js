@@ -1,6 +1,6 @@
 import express from 'express';
 import bodyParser from 'body-parser';
-import pg from 'pg';
+import pkg from 'pg'; // Import the default export from pg
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import session from 'express-session';
@@ -17,14 +17,16 @@ const saltRounds = 10;
 const upload = multer(); // Initialize multer without storage configuration
 app.use(upload.none());
 
-const db = new pg.Client({
-    user: process.env.PG_USER,
-    host: process.env.PG_HOST,
-    database: process.env.PG_DATABASE,
-    password: process.env.PG_PASSWORD,
-    port: process.env.PG_PORT,
+// Use Pool from pg
+const { Pool } = pkg;
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    // Remove or modify the SSL configuration
+    // ssl: {
+    //     rejectUnauthorized: false // Remove this if SSL is not supported
+    // }
 });
-db.connect();
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
@@ -56,112 +58,117 @@ app.get('/', (req, res) => {
 async function fetchData(id) {
     const data = [];
     const friends = [];
-    const activeConversation = await db.query(`
-        select m.sender_id as user, m.receiver_id, u.username as friend_name, m.content as message, m.timestamp as time from messages m
-        inner join users u 
-        on u.id = m.receiver_id
-        where m.sender_id = $1 or m.receiver_id = $1
-        order by time desc;
-        `,[id]
-    );
-    const friends_list = await db.query(`
-        select f.user_id, f.friends_id, u.username
-        from friends f
-        inner join users u 
-        on u.id = f.friends_id
-        where f.user_id = $1 
-        `,[id])
+    const activeConversation = await pool.query(`
+        SELECT m.sender_id AS user, m.receiver_id, u.username AS friend_name, m.content AS message, m.timestamp AS time
+        FROM messages m
+        INNER JOIN users u ON u.id = m.receiver_id
+        WHERE m.sender_id = $1 OR m.receiver_id = $1
+        ORDER BY time DESC;
+    `, [id]);
+
+    const friends_list = await pool.query(`
+        SELECT f.user_id, f.friends_id, u.username
+        FROM friends f
+        INNER JOIN users u ON u.id = f.friends_id
+        WHERE f.user_id = $1
+    `, [id]);
+
     activeConversation.rows.forEach(user => {
         data.push({
-            sender_id:user.user, friend_name: user.friend_name,receiver_id: user.receiver_id,message: user.message,time: user.time
-        })
+            sender_id: user.user,
+            friend_name: user.friend_name,
+            receiver_id: user.receiver_id,
+            message: user.message,
+            time: user.time
+        });
     });
-    friends_list.rows.forEach(name=>{
-        friends.push({friend_name: name.username, friend_id: name.friends_id})
-    })
+
+    friends_list.rows.forEach(name => {
+        friends.push({ friend_name: name.username, friend_id: name.friends_id });
+    });
+
     return { friends: friends, data: data };
 }
 
 // Render home page
 app.all('/home', async (req, res) => {
     if (req.isAuthenticated()) {
-      const friendId = req.query.friend_id || req.body.friend_id;
-      const message = req.body.message; 
-      const type = req.query.type || 'success'; 
-  
-      let x = await fetchData(req.user.id);
-      const data = [];
-      const friend_0 = x.friends[0]?.friend_id;
-      let friend = friendId || friend_0;
-  
-      if (message) {
-        try {
-          await db.query(`
-            INSERT INTO messages (sender_id, receiver_id, content)
-            VALUES ($1, $2, $3)
-          `, [req.user.id, friend, message]);
-        } catch (err) {
-          console.log(err);
-          res.redirect('/');
-          return;
+        const friendId = req.query.friend_id || req.body.friend_id;
+        const message = req.body.message;
+        const type = req.query.type || 'success';
+
+        let x = await fetchData(req.user.id);
+        const data = [];
+        const friend_0 = x.friends[0]?.friend_id;
+        let friend = friendId || friend_0;
+
+        if (message) {
+            try {
+                await pool.query(`
+                    INSERT INTO messages (sender_id, receiver_id, content)
+                    VALUES ($1, $2, $3)
+                `, [req.user.id, friend, message]);
+            } catch (err) {
+                console.log(err);
+                res.redirect('/');
+                return;
+            }
         }
-      }
-  
-      x = await fetchData(req.user.id);
-  
-      x.data.forEach(msg => {
-        if (
-          (msg.sender_id == req.user.id && msg.receiver_id == friend) ||
-          (msg.sender_id == friend && msg.receiver_id == req.user.id)
-        ) {
-          const dateObj = new Date(msg.time);
-          const options = {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false
-          };
-          const formattedDate = dateObj.toLocaleDateString('en-US', options);
-          const formattedTime = dateObj.toLocaleTimeString('en-US', options);
-          const formattedDateTime = `${formattedTime}`;
-  
-          data.push({
-            receiver_id: msg.receiver_id,
-            message: msg.message,
-            time: formattedDateTime
-          });
-        }
-      });
-  
-      res.render('home', {
-        friends: x.friends,
-        userdata: req.user,
-        messages: data,
-        friend_name: x.friends.find(f => f.friend_id == friend)?.friend_name || "Friend's Username",
-        friend_id: friend,
-        message, // Pass the message for popup
-        type // Pass the type for popup
-      });
+
+        x = await fetchData(req.user.id);
+
+        x.data.forEach(msg => {
+            if (
+                (msg.sender_id == req.user.id && msg.receiver_id == friend) ||
+                (msg.sender_id == friend && msg.receiver_id == req.user.id)
+            ) {
+                const dateObj = new Date(msg.time);
+                const options = {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                };
+                const formattedDate = dateObj.toLocaleDateString('en-US', options);
+                const formattedTime = dateObj.toLocaleTimeString('en-US', options);
+                const formattedDateTime = `${formattedTime}`;
+
+                data.push({
+                    receiver_id: msg.receiver_id,
+                    message: msg.message,
+                    time: formattedDateTime
+                });
+            }
+        });
+
+        res.render('home', {
+            friends: x.friends,
+            userdata: req.user,
+            messages: data,
+            friend_name: x.friends.find(f => f.friend_id == friend)?.friend_name || "Friend's Username",
+            friend_id: friend,
+            message, // Pass the message for popup
+            type // Pass the type for popup
+        });
     } else {
-      res.redirect('/');
+        res.redirect('/');
     }
-  });
-  
+});
 
-
+// Register user
 app.post('/register', async (req, res) => {
     const { username, email, password } = req.body;
 
     try {
-        const emailResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+        const emailResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
         if (emailResult.rows.length > 0) {
             return res.redirect('/?message=Email already exists, try logging in.&type=error');
         }
 
-        const usernameResult = await db.query('SELECT * FROM users WHERE username = $1', [username]);
+        const usernameResult = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
         if (usernameResult.rows.length > 0) {
             return res.redirect('/?message=Username already exists.&type=error');
         }
@@ -171,7 +178,7 @@ app.post('/register', async (req, res) => {
                 console.log('Error hashing password', err);
                 return res.redirect('/?message=Error hashing password&type=error');
             }
-            await db.query('INSERT INTO users (username, email, password) VALUES ($1, $2, $3)', [username, email, hash]);
+            await pool.query('INSERT INTO users (username, email, password) VALUES ($1, $2, $3)', [username, email, hash]);
             res.redirect('/?message=User registered successfully!&type=success');
         });
     } catch (err) {
@@ -182,10 +189,9 @@ app.post('/register', async (req, res) => {
 
 // Login user
 app.post('/login', passport.authenticate('local', {
-    successRedirect: '/home?message=Logged in Successfully ' + '&type=success',
+    successRedirect: '/home?message=Logged in Successfully&type=success',
     failureRedirect: '/?message=Wrong email or password&type=error',
 }));
-
 
 // Logout user
 app.post('/logout', (req, res) => {
@@ -201,11 +207,11 @@ app.post('/logout', (req, res) => {
 // Add friend
 app.post('/add-friend', async (req, res) => {
     const { username } = req.body;
-    
+
     try {
         let x = await fetchData(req.user.id);
         const friendIDs = x.friends.map(friend => friend.friend_id);
-        const userResult = await db.query('SELECT id FROM users WHERE username = $1', [username]);
+        const userResult = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
 
         if (userResult.rows.length === 0) {
             return res.redirect('/home?message=User not found.&type=error');
@@ -221,7 +227,7 @@ app.post('/add-friend', async (req, res) => {
             return res.redirect('/home?message=You are already friends with this user.&type=error');
         }
 
-        await db.query('INSERT INTO friends (user_id, friends_id, active_conversation) VALUES ($1, $2, true)', [req.user.id, userId]);
+        await pool.query('INSERT INTO friends (user_id, friends_id, active_conversation) VALUES ($1, $2, true)', [req.user.id, userId]);
         res.redirect('/home?message=Friend added successfully.');
         
     } catch (error) {
@@ -230,13 +236,10 @@ app.post('/add-friend', async (req, res) => {
     }
 });
 
-
-  
-
 // Passport configuration
 passport.use(new Strategy({ usernameField: 'email' }, async (email, password, done) => {
     try {
-        const result = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+        const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
         const user = result.rows[0];
 
         if (user) {
@@ -258,7 +261,7 @@ passport.serializeUser((user, done) => {
 
 passport.deserializeUser(async (id, done) => {
     try {
-        const result = await db.query('SELECT * FROM users WHERE id = $1', [id]);
+        const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
         const user = result.rows[0];
         done(null, user);
     } catch (err) {
