@@ -24,8 +24,9 @@ const db = new Pool({
     database: process.env.PG_DATABASE,
     password: process.env.PG_PASSWORD,
     port: process.env.PG_PORT,
-    // Remove SSL configuration if not supported
-    // ssl: { rejectUnauthorized: false } 
+    ssl: {
+        rejectUnauthorized: false
+    }
 });
 
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -59,98 +60,104 @@ async function fetchData(id) {
     const data = [];
     const friends = [];
     const activeConversation = await db.query(`
-        select m.sender_id as user, m.receiver_id, u.username as friend_name, m.content as message, m.timestamp as time from messages m
-        inner join users u 
-        on u.id = m.receiver_id
-        where m.sender_id = $1 or m.receiver_id = $1
-        order by time desc;
-        `,[id]
+        SELECT m.sender_id as user, m.receiver_id, u.username as friend_name, m.content as message, m.timestamp as time 
+        FROM messages m
+        INNER JOIN users u ON u.id = m.receiver_id
+        WHERE m.sender_id = $1 OR m.receiver_id = $1
+        ORDER BY time DESC;
+        `, [id]
     );
     const friends_list = await db.query(`
-        select f.user_id, f.friends_id, u.username
-        from friends f
-        inner join users u 
-        on u.id = f.friends_id
-        where f.user_id = $1 
-        `,[id])
+        SELECT f.user_id, f.friends_id, u.username
+        FROM friends f
+        INNER JOIN users u ON u.id = f.friends_id
+        WHERE f.user_id = $1 
+        `, [id]);
+
     activeConversation.rows.forEach(user => {
         data.push({
-            sender_id:user.user, friend_name: user.friend_name,receiver_id: user.receiver_id,message: user.message,time: user.time
-        })
+            sender_id: user.user, 
+            friend_name: user.friend_name,
+            receiver_id: user.receiver_id,
+            message: user.message,
+            time: user.time
+        });
     });
-    friends_list.rows.forEach(name=>{
-        friends.push({friend_name: name.username, friend_id: name.friends_id})
-    })
+
+    friends_list.rows.forEach(name => {
+        friends.push({ friend_name: name.username, friend_id: name.friends_id });
+    });
+
     return { friends: friends, data: data };
 }
 
 // Render home page
 app.all('/home', async (req, res) => {
     if (req.isAuthenticated()) {
-      const friendId = req.query.friend_id || req.body.friend_id;
-      const message = req.body.message; 
-      const type = req.query.type || 'success'; 
+        const friendId = req.query.friend_id || req.body.friend_id;
+        const message = req.body.message; 
+        const type = req.query.type || 'success'; 
   
-      let x = await fetchData(req.user.id);
-      const data = [];
-      const friend_0 = x.friends[0]?.friend_id;
-      let friend = friendId || friend_0;
+        let x = await fetchData(req.user.id);
+        const data = [];
+        const friend_0 = x.friends[0]?.friend_id;
+        let friend = friendId || friend_0;
   
-      if (message) {
-        try {
-          await db.query(`
-            INSERT INTO messages (sender_id, receiver_id, content)
-            VALUES ($1, $2, $3)
-          `, [req.user.id, friend, message]);
-        } catch (err) {
-          console.log(err);
-          res.redirect('/');
-          return;
+        if (message) {
+            try {
+                await db.query(`
+                    INSERT INTO messages (sender_id, receiver_id, content)
+                    VALUES ($1, $2, $3)
+                `, [req.user.id, friend, message]);
+            } catch (err) {
+                console.log(err);
+                res.redirect('/');
+                return;
+            }
         }
-      }
   
-      x = await fetchData(req.user.id);
+        x = await fetchData(req.user.id);
   
-      x.data.forEach(msg => {
-        if (
-          (msg.sender_id == req.user.id && msg.receiver_id == friend) ||
-          (msg.sender_id == friend && msg.receiver_id == req.user.id)
-        ) {
-          const dateObj = new Date(msg.time);
-          const options = {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: false
-          };
-          const formattedDate = dateObj.toLocaleDateString('en-US', options);
-          const formattedTime = dateObj.toLocaleTimeString('en-US', options);
-          const formattedDateTime = `${formattedTime}`;
+        x.data.forEach(msg => {
+            if (
+                (msg.sender_id == req.user.id && msg.receiver_id == friend) ||
+                (msg.sender_id == friend && msg.receiver_id == req.user.id)
+            ) {
+                const dateObj = new Date(msg.time);
+                const options = {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                };
+                const formattedDate = dateObj.toLocaleDateString('en-US', options);
+                const formattedTime = dateObj.toLocaleTimeString('en-US', options);
+                const formattedDateTime = `${formattedTime}`;
   
-          data.push({
-            receiver_id: msg.receiver_id,
-            message: msg.message,
-            time: formattedDateTime
-          });
-        }
-      });
+                data.push({
+                    receiver_id: msg.receiver_id,
+                    message: msg.message,
+                    time: formattedDateTime
+                });
+            }
+        });
   
-      res.render('home', {
-        friends: x.friends,
-        userdata: req.user,
-        messages: data,
-        friend_name: x.friends.find(f => f.friend_id == friend)?.friend_name || "Friend's Username",
-        friend_id: friend,
-        message, // Pass the message for popup
-        type // Pass the type for popup
-      });
+        res.render('home', {
+            friends: x.friends,
+            userdata: req.user,
+            messages: data,
+            friend_name: x.friends.find(f => f.friend_id == friend)?.friend_name || "Friend's Username",
+            friend_id: friend,
+            message, // Pass the message for popup
+            type // Pass the type for popup
+        });
     } else {
-      res.redirect('/');
+        res.redirect('/');
     }
-  });
+});
   
 app.post('/register', async (req, res) => {
     const { username, email, password } = req.body;
@@ -182,7 +189,7 @@ app.post('/register', async (req, res) => {
 
 // Login user
 app.post('/login', passport.authenticate('local', {
-    successRedirect: '/home?message=Logged in Successfully ' + '&type=success',
+    successRedirect: '/home?message=Logged in Successfully&type=success',
     failureRedirect: '/?message=Wrong email or password&type=error',
 }));
 
@@ -221,11 +228,11 @@ app.post('/add-friend', async (req, res) => {
         }
 
         await db.query('INSERT INTO friends (user_id, friends_id, active_conversation) VALUES ($1, $2, true)', [req.user.id, userId]);
-        res.redirect('/home?message=Friend added successfully.');
+        res.redirect('/home?message=Friend added successfully.&type=success');
         
     } catch (error) {
         console.error(error);
-        res.redirect('/home?message=Server error.');
+        res.redirect('/home?message=Server error.&type=error');
     }
 });
 
