@@ -107,8 +107,9 @@ app.all('/home', async (req, res) => {
         if (message) {
             try {
                 await db.query(`
-                    INSERT INTO messages (sender_id, receiver_id, content)
-                    VALUES ($1, $2, $3)
+
+                    INSERT INTO messages (sender_id, receiver_id, content,timestamp)
+                    VALUES ($1, $2, $3,CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')
                 `, [req.user.id, friend, message]);
             } catch (err) {
                 console.log(err);
