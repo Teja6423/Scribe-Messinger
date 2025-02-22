@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="/css/home.css">
+  <link rel="stylesheet" href="/css/mediaqueries.css">
   <title>Scribe Messenger</title>
   <style>
-    /* Popup message styles */
     .popup-message {
         display: none;
         position: fixed;
@@ -19,14 +19,14 @@
         z-index: 1000;
     }
     .popup-message.success {
-        background-color: #28a745; /* Green for success */
+        background-color: #28a745;
     }
     .popup-message.error {
-        background-color: #dc3545; /* Red for error */
+        background-color: #dc3545;
     }
     .availability-check {
         font-size: 0.9em;
-        color: #dc3545; /* Red color for error */
+        color: #dc3545;
         margin-top: 5px;
     }
   </style>
@@ -57,20 +57,20 @@
       <div class="search">
         <input type="text" placeholder="Search...">
       </div>
-      <div class="conversations">
-        <!-- List of conversations -->
+      <div class="conversations" >
         <ul id="conversationList">
           <% friends.forEach(friend => { %>
-            <form method="get" action="/home" onclick="submit('<%= friend.friend_id %>')">
-
+            <form method="get" action="/home" id="form_<%= friend.friend_id %>" onclick="storeFlagAndSubmit('<%= friend.friend_id %>');">
               <li class="conversation">
                 <div class="conversation-info">
                   <span class="friend-name"><%= friend.friend_name %></span>
                   <span class="last-message">ID:#<%= friend.friend_id %></span>
                   <input type="hidden" name="friend_id" value="<%= friend.friend_id %>">
                 </div>
-            </li>
+              </li>
             </form>
+            
+            
 
           <% }); %>
         </ul>
@@ -83,8 +83,9 @@
       </form>
     </div>
     <div class="chat-area">
-      <!-- Chat area for displaying messages -->
       <div class="chat-header">
+        <span class="back-arrow" onclick="toggle_chat();">&#8666;</span>
+
         <span class="chat-username"><%= friend_name || "Friend's Username" %></span>
       </div>
       <div class="messages">
@@ -118,29 +119,28 @@
       const conversationsBtn = document.getElementById("conversationsBtn");
       const addFriendBtn = document.getElementById("addFriendBtn");
       const conversationList = document.querySelector(".conversations");
+      const search = document.querySelector(".search")
       const addFriendSection = document.querySelector(".add-friend");
       const popupMessage = document.getElementById('popupMessage');
 
-      // Function to update messages in the chat area
       function updateMessages() {
         const friendId = '<%= friend_id %>';
-        const userId = '<%= userdata.id %>'; // Make sure userdata.id is available in your template
+        const userId = '<%= userdata.id %>';
     
-        if (!friendId || !userId) return; // Do not fetch if no friendId or userId is set
+        if (!friendId || !userId) return;
     
         fetch(`/home?friend_id=${encodeURIComponent(friendId)}`, {
           headers: {
             'Accept': 'application/json'
           }
         })
-        .then(response => response.json()) // Directly parse JSON
+        .then(response => response.json())
         .then(data => {
           const messagesContainer = document.querySelector('.messages');
-          messagesContainer.innerHTML = ''; // Clear existing messages
+          messagesContainer.innerHTML = '';
     
           data.messages.forEach(msg => {
             const messageDiv = document.createElement('div');
-            // Determine message class based on receiver_id
             messageDiv.className = 'message ' + (msg.receiver_id === parseInt(userId) ? 'received' : 'sent');
             messageDiv.innerHTML = `
               <p class="message-text">${msg.message}</p>
@@ -148,8 +148,7 @@
             `;
             messagesContainer.appendChild(messageDiv);
           });
-    
-          // Scroll to the bottom of the messages container
+  
           messagesContainer.scrollTop = messagesContainer.scrollHeight;
         })
         .catch((error) => {
@@ -157,54 +156,70 @@
         });
       }
     
-      // Set interval to update messages every 5 seconds
       setInterval(updateMessages, 5000);
-    
-      // Initial call to populate messages
       updateMessages();
-    
-      // Function to submit the form for a selected conversation
       function submitForm(friendId) {
         document.getElementById('form_' + friendId).submit();
       }
-    
-      // Event listeners for toggling between conversations and add friend sections
       conversationsBtn.addEventListener("click", () => {
         conversationList.style.display = "block";
         addFriendSection.style.display = "none";
+        search.style.display="inline";
       });
     
       addFriendBtn.addEventListener("click", () => {
         conversationList.style.display = "none";
         addFriendSection.style.display = "block";
+        search.style.display = "none";
       });
-    
-      // Display the popup message if it exists
       function showPopupMessage(message, type) {
         if (!popupMessage) {
           console.error('Popup message element not found');
           return;
         }
-        console.log('Showing popup message:', message, type); // Debugging line
+        console.log('Showing popup message:', message, type);
         popupMessage.textContent = message;
         popupMessage.className = `popup-message ${type}`;
         popupMessage.style.display = 'block';
         setTimeout(() => {
           popupMessage.style.display = 'none';
-        }, 5000); // Hide message after 5 seconds
+        }, 5000);
       }
 
-      // Display messages from URL parameters
+    
       const urlParams = new URLSearchParams(window.location.search);
       const message = urlParams.get('message');
       const type = urlParams.get('type');
 
-      console.log('URL Parameters:', { message, type }); // Debugging line
+      console.log('URL Parameters:', { message, type });
 
       if (message && type) {
         showPopupMessage(message, type);
       }
     });
+
+    function storeFlagAndSubmit(friendId) {
+    if (window.innerWidth < 1169) {
+      sessionStorage.setItem('toggleChat', 'true');
+    }
+    document.getElementById('form_' + friendId).submit();
+  }
+
+  window.onload = function() {
+    if (sessionStorage.getItem('toggleChat') === 'true' && window.innerWidth < 1169) {
+      toggle_chat();
+      sessionStorage.removeItem('toggleChat'); 
+    }
+  };
+  function toggle_chat() {
+    console.log("Toggling chat...");
+    const chat = document.querySelector(".chat-area");
+    const sidebar = document.querySelector(".sidebar");
+    chat.classList.toggle("open");
+    sidebar.classList.toggle("open");
+  }
+
+    
   </script>
     
 </body>

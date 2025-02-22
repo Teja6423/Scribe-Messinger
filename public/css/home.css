@@ -1,35 +1,27 @@
-/* General styles */
+
 body {
   font-family: Arial, sans-serif;
   margin: 0;
   background-color: #111;
   color: #fff;
 }
-
-/* Container styles */
 .container {
   display: flex;
   height: 100vh;
   flex-direction: row;
 }
-
-/* Sidebar styles */
 .sidebar {
   width: 30%;
   background-color: #2a2f32;
   display: flex;
   flex-direction: column;
 }
-
-/* Header styles */
 .header {
   padding: 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
-/* User info styles */
 .user-info {
   display: flex;
   align-items: center;
@@ -71,15 +63,11 @@ body {
   border: none;
   outline: none;
 }
-
-/* Conversations and add-friend sections */
 .conversations,
 .add-friend {
   flex-grow: 1;
   overflow-y: auto;
 }
-
-/* Conversation list styles */
 .conversations ul {
   list-style: none;
   padding: 0;
@@ -131,25 +119,19 @@ body {
   padding: 10px;
   cursor: pointer;
 }
-
-/* Chat area styles */
 .chat-area {
   width: 70%;
   display: flex;
   flex-direction: column;
   background-color: #1e1e1e;
 }
-
-/* Chat header styles */
 .chat-header {
   padding: 10px;
   border-bottom: 1px solid #3c4043;
 }
-
 .chat-username {
   font-weight: bold;
 }
-
 .messages {
   flex-grow: 1;
   overflow-y: auto;
@@ -157,7 +139,6 @@ body {
   display: flex;
   flex-direction: column-reverse;
 }
-
 .message {
   margin: 10px 0;
 }
@@ -169,7 +150,6 @@ body {
 .sent {
   text-align: right;
 }
-
 .message-text {
   display: inline-block;
   padding: 10px;
@@ -177,18 +157,15 @@ body {
   background-color: #2a2f32;
   color: #fff;
 }
-
 .message-time {
   font-size: 0.8em;
   color: #bbb;
 }
-
 .message-input {
   display: flex;
   padding: 10px;
   border-top: 1px solid #3c4043;
 }
-
 .message-input input {
   flex-grow: 1;
   padding: 10px;
@@ -196,7 +173,6 @@ body {
   border: none;
   outline: none;
 }
-
 .send-btn {
   background-color: #3c4043;
   color: #fff;
@@ -206,47 +182,31 @@ body {
   border-radius: 20px;
   cursor: pointer;
 }
-
-/* Mobile view */
-@media (max-width: 768px) {
-  .container {
-      flex-direction: column;
-  }
-
-  .sidebar {
-      width: 100%;
-      height: 50%;
-  }
-
-  .chat-area {
-      width: 100%;
-      height: 50%;
-  }
-
-  .header {
-      flex-direction: column;
-      align-items: flex-start;
-  }
-
-  .user-info {
-      margin-bottom: 10px;
-  }
-
-  .options {
-      margin-bottom: 10px;
-  }
-
-  .conversations,
-  .add-friend {
+.back-arrow{
+  display: none;
+  font-size: 25px;
+}
+.back-arrow:hover{
+  color: grey;
+  cursor: pointer;
+}
+.sidebar.open{
+  width: 0%;
+  transition: 50ms;
+}
+.chat-area.open{
+  width: 100%;
+  transition: 50ms;
+}
+@media (max-width: 1169px) {
+  .sidebar{
       width: 100%;
   }
-
-  .conversation,
-  .add-friend input,
-  .add-friend .btn,
-  .message-input input,
-  .send-btn {
-      width: 100%;
-      box-sizing: border-box;
+  .chat-area{
+      width:0%;
+  }
+  .back-arrow{
+      display:inline;
+      padding: 10px;
   }
 }
