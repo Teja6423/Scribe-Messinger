@@ -106,7 +106,12 @@
       <div class="message-input">
         <form action="/home" method="post">
           <input type="hidden" name="friend_id" value="<%= friend_id %>">
-          <input type="text" name="message" placeholder="Type a message...">
+          <input 
+            id="message-box" 
+            type="text" 
+            name="message" 
+            placeholder="Type a message..."
+          >
           <button class="send-btn">Send</button>
         </form>
       </div>
@@ -119,10 +124,10 @@
       const conversationsBtn = document.getElementById("conversationsBtn");
       const addFriendBtn = document.getElementById("addFriendBtn");
       const conversationList = document.querySelector(".conversations");
-      const search = document.querySelector(".search")
+      const search = document.querySelector(".search");
       const addFriendSection = document.querySelector(".add-friend");
       const popupMessage = document.getElementById('popupMessage');
-
+    
       function updateMessages() {
         const friendId = '<%= friend_id %>';
         const userId = '<%= userdata.id %>';
@@ -148,7 +153,7 @@
             `;
             messagesContainer.appendChild(messageDiv);
           });
-  
+    
           messagesContainer.scrollTop = messagesContainer.scrollHeight;
         })
         .catch((error) => {
@@ -158,6 +163,36 @@
     
       setInterval(updateMessages, 5000);
       updateMessages();
+    
+      // Handle message send
+      const form = document.querySelector(".message-input form");
+      form.addEventListener('submit', function(event) {
+        event.preventDefault(); // Prevent form submission
+    
+        const messageInput = form.querySelector('input[name="message"]');
+        const message = messageInput.value;
+        const friendId = form.querySelector('input[name="friend_id"]').value;
+    
+        if (message.trim()) {
+          fetch('/home', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ message, friend_id: friendId })
+          })
+          .then(response => response.json())
+          .then(data => {
+            updateMessages(); // Update the chat with the new message
+            messageInput.value = ''; // Clear the input field after sending
+            messageInput.blur(); // Remove focus from the message input field
+          })
+          .catch((error) => {
+            console.error('Error sending message:', error);
+          });
+        }
+      });
+    
       function submitForm(friendId) {
         document.getElementById('form_' + friendId).submit();
       }
@@ -172,6 +207,7 @@
         addFriendSection.style.display = "block";
         search.style.display = "none";
       });
+    
       function showPopupMessage(message, type) {
         if (!popupMessage) {
           console.error('Popup message element not found');
@@ -185,42 +221,41 @@
           popupMessage.style.display = 'none';
         }, 5000);
       }
-
     
       const urlParams = new URLSearchParams(window.location.search);
       const message = urlParams.get('message');
       const type = urlParams.get('type');
-
+    
       console.log('URL Parameters:', { message, type });
-
+    
       if (message && type) {
         showPopupMessage(message, type);
       }
     });
-
-    function storeFlagAndSubmit(friendId) {
-    if (window.innerWidth < 1169) {
-      sessionStorage.setItem('toggleChat', 'true');
-    }
-    document.getElementById('form_' + friendId).submit();
-  }
-
-  window.onload = function() {
-    if (sessionStorage.getItem('toggleChat') === 'true' && window.innerWidth < 1169) {
-      toggle_chat();
-      sessionStorage.removeItem('toggleChat'); 
-    }
-  };
-  function toggle_chat() {
-    console.log("Toggling chat...");
-    const chat = document.querySelector(".chat-area");
-    const sidebar = document.querySelector(".sidebar");
-    chat.classList.toggle("open");
-    sidebar.classList.toggle("open");
-  }
-
     
+    function storeFlagAndSubmit(friendId) {
+      if (window.innerWidth < 1169) {
+        sessionStorage.setItem('toggleChat', 'true');
+      }
+      document.getElementById('form_' + friendId).submit();
+    }
+    
+    window.onload = function() {
+      if (sessionStorage.getItem('toggleChat') === 'true' && window.innerWidth < 1169) {
+        toggle_chat();
+        sessionStorage.removeItem('toggleChat'); 
+      }
+    };
+    
+    function toggle_chat() {
+      console.log("Toggling chat...");
+      const chat = document.querySelector(".chat-area");
+      const sidebar = document.querySelector(".sidebar");
+      chat.classList.toggle("open");
+      sidebar.classList.toggle("open");
+    }
   </script>
+  
     
 </body>
 </html>

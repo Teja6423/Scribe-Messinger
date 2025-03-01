@@ -54,6 +54,7 @@ body {
 
 .search {
   padding: 10px;
+  width: 90%;
 }
 
 .search input {
@@ -163,6 +164,7 @@ body {
 }
 .message-input {
   display: flex;
+  align-items: center;
   padding: 10px;
   border-top: 1px solid #3c4043;
 }
@@ -203,7 +205,8 @@ body {
       width: 100%;
   }
   .chat-area{
-      width:0%;
+      width:0px;
+      overflow: hidden;
   }
   .back-arrow{
       display:inline;
